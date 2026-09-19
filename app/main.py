@@ -63,6 +63,16 @@ def delete_suggestion(sid):
     return redirect(url_for("dashboard"))
 
 
+@app.route("/delete-bulk", methods=["POST"])
+def delete_bulk_suggestions():
+    ids = request.form.getlist("selected_ids")
+    for sid in ids:
+        db.delete_suggestion(int(sid))
+    if ids:
+        flash(f"🗑️ 已刪除 {len(ids)} 筆")
+    return redirect(url_for("dashboard"))
+
+
 @app.route("/confirm", methods=["POST"])
 def confirm_orders():
     suggestions = db.get_pending_suggestions()
