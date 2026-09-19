@@ -13,7 +13,17 @@
    SJ_SECRET_KEY=你的方舟證券帳戶的Secret
    SJ_SIMULATION=true   # 先保持模擬,測試沒問題再改成 false
    ```
-   (正式下單才需要再加 `SJ_CA_PATH` / `SJ_CA_PASSWORD`,但憑證檔案怎麼放到 Zeabur 上需要額外處理,等你要切正式環境時再一起弄)
+   切換正式環境(`SJ_SIMULATION=false`)前,還需要額外設定 CA 憑證(下單簽章用):
+   ```
+   SJ_CA_BASE64=<.pfx憑證檔轉成的base64字串,一長串沒有換行>
+   SJ_CA_PASSWORD=<憑證密碼>
+   SJ_CA_PERSON_ID=<身分證字號>
+   ```
+   本機把 `.pfx` 轉成 base64 的指令:
+   ```bash
+   python3 -c "import base64;print(base64.b64encode(open('Sinopac.pfx','rb').read()).decode())"
+   ```
+   把輸出的整串文字貼進 `SJ_CA_BASE64`。程式啟動時會自動還原成暫存檔案再啟用 CA,不需要額外處理。
 5. 部署完成後會拿到一個網址(像 `xxx.zeabur.app`),打開就是 Dashboard
 
 ## 每日使用流程

@@ -9,9 +9,30 @@ API_KEY = os.getenv("SJ_API_KEY")
 SECRET_KEY = os.getenv("SJ_SECRET_KEY")
 SIMULATION = os.getenv("SJ_SIMULATION", "true").lower() == "true"
 CA_PATH = os.getenv("SJ_CA_PATH")
+CA_BASE64 = os.getenv("SJ_CA_BASE64")
 CA_PASSWORD = os.getenv("SJ_CA_PASSWORD")
+CA_PERSON_ID = os.getenv("SJ_CA_PERSON_ID")
 
 _api = None
+
+
+def _resolve_ca_path():
+    """
+    正式環境需要 CA 憑證檔案路徑。Zeabur 沒有檔案上傳介面,
+    所以優先支援 SJ_CA_BASE64(把 .pfx 檔轉成 base64 字串存進環境變數),
+    程式啟動時還原成暫存檔;若你是在自己電腦跑,也可以直接用 SJ_CA_PATH 給真實路徑。
+    """
+    if CA_PATH:
+        return CA_PATH
+    if CA_BASE64:
+        import base64
+
+        pfx_bytes = base64.b64decode(CA_BASE64)
+        tmp_path = "/tmp/sinopac_ca.pfx"
+        with open(tmp_path, "wb") as f:
+            f.write(pfx_bytes)
+        return tmp_path
+    return None
 
 
 def get_api():
@@ -31,8 +52,16 @@ def get_api():
     api = sj.Shioaji(simulation=SIMULATION)
     api.login(api_key=API_KEY, secret_key=SECRET_KEY)
 
-    if not SIMULATION and CA_PATH:
-        api.activate_ca(ca_path=CA_PATH, ca_passwd=CA_PASSWORD)
+    if not SIMULATION:
+        ca_path = _resolve_ca_path()
+        if not ca_path:
+            raise RuntimeError("正式環境需要 CA 憑證,請設定 SJ_CA_PATH 或 SJ_CA_BASE64")
+        kwargs = {"ca_path": ca_path, "ca_passwd": CA_PASSWORD}
+        if CA_PERSON_ID:
+            kwargs["person_id"] = CA_PERSON_ID
+        result = api.activate_ca(**kwargs)
+        if not result:
+            raise RuntimeError("CA 憑證啟用失敗,請確認 SJ_CA_BASE64/SJ_CA_PASSWORD/SJ_CA_PERSON_ID 是否正確")
 
     _api = api
     return _api
