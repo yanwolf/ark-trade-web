@@ -1,4 +1,4 @@
 flask
-shioaji[speed]
+shioaji
 psycopg2-binary
 gunicorn

@@ -1,9 +1,9 @@
 """
 shioaji_client.py — 封裝登入、抓持股、下單。
+注意: shioaji 有底層 C 函式庫依賴,故意延後到真正需要時才 import,
+避免它在某些環境裝不起來時,拖垮整個 Flask app 讓網站開不起來。
 """
 import os
-import shioaji as sj
-from shioaji.constant import Action, StockPriceType, OrderType
 
 API_KEY = os.getenv("SJ_API_KEY")
 SECRET_KEY = os.getenv("SJ_SECRET_KEY")
@@ -22,6 +22,11 @@ def get_api():
 
     if not API_KEY or not SECRET_KEY:
         raise RuntimeError("尚未設定 SJ_API_KEY / SJ_SECRET_KEY 環境變數")
+
+    try:
+        import shioaji as sj
+    except Exception as e:
+        raise RuntimeError(f"shioaji 套件載入失敗(可能是環境缺少底層函式庫): {e}")
 
     api = sj.Shioaji(simulation=SIMULATION)
     api.login(api_key=API_KEY, secret_key=SECRET_KEY)
@@ -48,6 +53,8 @@ def get_current_positions():
 
 def place_orders(confirm_list):
     """confirm_list: [{code, action, qty, held_qty, note}]"""
+    from shioaji.constant import Action, StockPriceType, OrderType
+
     api = get_api()
     results = []
     for item in confirm_list:
