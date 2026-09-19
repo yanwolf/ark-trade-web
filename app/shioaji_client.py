@@ -148,15 +148,49 @@ def get_position_details():
     return details
 
 
+def _tick_size(contract, price):
+    """
+    台股跳價單位(最小升降單位)。ETF(category 通常是 "00")用簡化的兩級距規則,
+    一般股票用交易所的六級距規則。
+    """
+    is_etf = getattr(contract, "category", None) == "00"
+    if is_etf:
+        return 0.01 if price < 50 else 0.05
+    if price < 10:
+        return 0.01
+    if price < 50:
+        return 0.05
+    if price < 100:
+        return 0.1
+    if price < 500:
+        return 0.5
+    if price < 1000:
+        return 1
+    return 5
+
+
+def _round_to_tick(contract, price):
+    """把價格向下對齊到合法的跳價單位,避免因為價格不合法被拒單。"""
+    if price is None:
+        return price
+    import math
+
+    tick = _tick_size(contract, price)
+    aligned = math.floor(price / tick + 1e-9) * tick
+    decimals = 2 if tick < 1 else 0
+    return round(aligned, decimals)
+
+
 def _get_order_price(api, contract, side, target_price=None):
     """
     決定下單價格。方舟運算的邏輯是「用合理低價慢慢等,不是不計代價求今天成交」,
     所以預設不追市價:
     - 你指定 target_price(例如方舟建議的淨值價)就用那個價格
     - 沒指定才退回用參考價(contract.reference)
-    最後夾在漲跌停範圍內,避免超出限制被交易所拒絕。
+    價格會先對齊跳價單位,再夾在漲跌停範圍內,避免超出限制被交易所拒絕。
     """
     price = target_price if target_price else contract.reference
+    price = _round_to_tick(contract, price)
 
     if side == "buy":
         price = min(price, contract.limit_up)
