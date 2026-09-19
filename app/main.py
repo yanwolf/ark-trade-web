@@ -50,8 +50,10 @@ def add_suggestion():
     action = request.form["action"].strip().lower()
     qty = int(request.form["qty"])
     note = request.form.get("note", "").strip()
-    if action in ("buy", "sell") and code and qty > 0:
+    if action in ("buy", "sell") and code and 0 < qty < 1000:
         db.add_suggestion(code, action, qty, note)
+    else:
+        flash("⚠️ 股數需介於 1~999(零股),請重新輸入")
     return redirect(url_for("dashboard"))
 
 
@@ -91,6 +93,45 @@ def confirm_orders():
     db.write_log(log_entries)
     db.mark_consumed([s["id"] for s in suggestions])
 
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/add-bulk", methods=["POST"])
+def add_bulk_suggestions():
+    """
+    批次貼上: 一行一筆, 格式 代號,買賣,股數,備註(選填)
+    例如:
+    00878,sell,410
+    00920,sell,126,方舟建議
+    00876,buy,71,位階保守
+    """
+    text = request.form.get("bulk_text", "")
+    added, skipped = 0, []
+    for line_no, raw_line in enumerate(text.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) < 3:
+            skipped.append(f"第{line_no}行格式錯誤: {raw_line}")
+            continue
+        code, action, qty_str = parts[0], parts[1].lower(), parts[2]
+        note = parts[3] if len(parts) > 3 else ""
+        try:
+            qty = int(qty_str)
+        except ValueError:
+            skipped.append(f"第{line_no}行股數不是數字: {raw_line}")
+            continue
+        if action not in ("buy", "sell") or not code or not (0 < qty < 1000):
+            skipped.append(f"第{line_no}行內容不合法(買賣需buy/sell,股數需1~999): {raw_line}")
+            continue
+        db.add_suggestion(code, action, qty, note)
+        added += 1
+
+    msg = f"✅ 已新增 {added} 筆"
+    if skipped:
+        msg += "\n⚠️ 略過以下行:\n" + "\n".join(skipped)
+    flash(msg)
     return redirect(url_for("dashboard"))
 
 

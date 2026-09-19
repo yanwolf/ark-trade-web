@@ -63,17 +63,21 @@ def mode_label():
 
 
 def get_current_positions():
+    """回傳 {code: 股數} 目前持股(以「股」為單位,不是張)。"""
     api = get_api()
     positions = api.list_positions(api.stock_account)
     current = {}
     for p in positions:
-        current[p.code] = current.get(p.code, 0) + int(p.quantity / 1000)
+        current[p.code] = current.get(p.code, 0) + int(p.quantity)
     return current
 
 
 def place_orders(confirm_list):
-    """confirm_list: [{code, action, qty, held_qty, note}]"""
-    from shioaji.constant import Action, StockPriceType, OrderType
+    """
+    confirm_list: [{code, action, qty, held_qty, note}]
+    qty 單位是「股」,用盤中零股(IntradayOdd)下單。
+    """
+    from shioaji.constant import Action, StockPriceType, OrderType, StockOrderLot
 
     api = get_api()
     results = []
@@ -87,6 +91,7 @@ def place_orders(confirm_list):
                 action=action,
                 price_type=StockPriceType.LMT,
                 order_type=OrderType.ROD,
+                order_lot=StockOrderLot.IntradayOdd,
                 account=api.stock_account,
             )
             trade = api.place_order(contract, order)
