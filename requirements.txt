@@ -1,0 +1,4 @@
+flask
+shioaji[speed]
+psycopg2-binary
+gunicorn

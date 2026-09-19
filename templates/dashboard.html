@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>方舟運算 → 永豐自動下單</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background:#111; color:#eee; padding:20px; max-width:900px; margin:auto; }
+  h1 { font-size:20px; }
+  table { width:100%; border-collapse: collapse; margin-bottom: 24px; }
+  th, td { border-bottom: 1px solid #333; padding: 8px; text-align: left; font-size: 14px; }
+  th { color: #aaa; }
+  .buy { color: #ff5555; font-weight: bold; }   /* 台股慣例: 紅漲/買 */
+  .sell { color: #55cc88; font-weight: bold; }  /* 綠跌/賣 */
+  .mode-tag { background:#333; padding:2px 8px; border-radius:4px; font-size:12px; }
+  form.inline { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  input, select { padding:6px; background:#222; color:#eee; border:1px solid #444; border-radius:4px; }
+  button { padding:6px 14px; border-radius:4px; border:none; cursor:pointer; }
+  .btn-add { background:#2a6; color:#fff; }
+  .btn-confirm { background:#c33; color:#fff; font-weight:bold; padding:10px 20px; font-size:15px; }
+  .btn-del { background:#444; color:#ccc; font-size:12px; padding:4px 8px; }
+  .warn { color:#e6a23c; margin-bottom:12px; }
+</style>
+</head>
+<body>
+
+<h1>方舟運算 建議 → 永豐下單 <span class="mode-tag">{{ mode_label }}模式</span></h1>
+
+{% if positions_error %}
+<p class="warn">⚠️ 無法取得目前持股: {{ positions_error }}(請確認 API Key 是否已設定)</p>
+{% endif %}
+
+<h2>新增今日建議</h2>
+<form class="inline" action="/add" method="post">
+  <input name="code" placeholder="代號 例:2330" required>
+  <select name="action">
+    <option value="buy">買進</option>
+    <option value="sell">賣出</option>
+  </select>
+  <input name="qty" type="number" placeholder="張數" min="1" required>
+  <input name="note" placeholder="備註(選填)">
+  <button class="btn-add" type="submit">新增</button>
+</form>
+
+<h2>待確認清單</h2>
+{% if confirm_list %}
+<table>
+  <tr><th>代號</th><th>動作</th><th>張數</th><th>目前持股</th><th>備註</th><th></th></tr>
+  {% for item in confirm_list %}
+  <tr>
+    <td>{{ item.code }}</td>
+    <td class="{{ 'buy' if item.action=='buy' else 'sell' }}">{{ '買進' if item.action=='buy' else '賣出' }}</td>
+    <td>{{ item.qty }}</td>
+    <td>{{ item.held_qty }}</td>
+    <td>{{ item.note }}</td>
+    <td>
+      <form action="/delete/{{ item.id }}" method="post" style="display:inline">
+        <button class="btn-del" type="submit">移除</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+<form action="/confirm" method="post" onsubmit="return confirm('確定要送出以上訂單嗎?');">
+  <button class="btn-confirm" type="submit">✅ 確認送出全部訂單</button>
+</form>
+{% else %}
+<p>目前沒有待確認的建議。</p>
+{% endif %}
+
+<h2>歷史紀錄</h2>
+<table>
+  <tr><th>時間</th><th>模式</th><th>代號</th><th>動作</th><th>張數</th><th>當時持股</th><th>狀態</th><th>錯誤</th></tr>
+  {% for log in logs %}
+  <tr>
+    <td>{{ log.ts }}</td>
+    <td>{{ log.mode }}</td>
+    <td>{{ log.code }}</td>
+    <td class="{{ 'buy' if log.action=='buy' else 'sell' }}">{{ '買進' if log.action=='buy' else '賣出' }}</td>
+    <td>{{ log.qty }}</td>
+    <td>{{ log.held_qty }}</td>
+    <td>{{ log.status }}</td>
+    <td>{{ log.error }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+</body>
+</html>
