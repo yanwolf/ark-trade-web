@@ -58,6 +58,18 @@ def test_login():
     return sj.__version__, accounts
 
 
+def check_contract_categories():
+    """
+    暫時性檢查用: 確認 api.Contracts 底下實際有哪些分類,
+    用來驗證複委託/海外商品是否真的能透過 Shioaji API 操作。
+    這個功能只是一次性排查,確認結果後這整段連同 API 測試區塊會一起下架。
+    """
+    api = get_api()
+    contracts = api.Contracts
+    categories = [a for a in dir(contracts) if not a.startswith("_")]
+    return categories
+
+
 def mode_label():
     return "模擬" if SIMULATION else "正式"
 

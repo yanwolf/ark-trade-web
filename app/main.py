@@ -145,6 +145,23 @@ def add_bulk_suggestions():
     return redirect(url_for("dashboard"))
 
 
+@app.route("/api-test/contracts", methods=["POST"])
+def api_test_contracts():
+    try:
+        categories = sc.check_contract_categories()
+        expected = {"Stocks", "Futures", "Options", "Indexs"}
+        extra = [c for c in categories if c not in expected and c[0].isupper()]
+        lines = ["Contracts 底下的分類:", ", ".join(categories)]
+        if extra:
+            lines.append(f"\n⚠️ 發現非預期分類,可能跟複委託/海外商品有關: {extra}")
+        else:
+            lines.append("\n✅ 只有台股/期貨/選擇權/指數,沒有複委託或海外商品的分類")
+        flash("\n".join(lines))
+    except Exception as e:
+        flash(f"❌ 檢查失敗: {e}")
+    return redirect(url_for("dashboard"))
+
+
 @app.route("/api-test/login", methods=["POST"])
 def api_test_login():
     try:
