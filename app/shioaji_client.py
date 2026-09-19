@@ -38,6 +38,26 @@ def get_api():
     return _api
 
 
+def get_version():
+    import shioaji as sj
+    return sj.__version__
+
+
+def test_login():
+    """
+    永豐官方 API 測試專用登入(帳戶啟用 API 服務的必要步驟之一)。
+    刻意不用快取的連線,確保每次按都是一次全新的 login() 呼叫。
+    """
+    import shioaji as sj
+
+    if not API_KEY or not SECRET_KEY:
+        raise RuntimeError("尚未設定 SJ_API_KEY / SJ_SECRET_KEY 環境變數")
+
+    api = sj.Shioaji(simulation=SIMULATION)
+    accounts = api.login(api_key=API_KEY, secret_key=SECRET_KEY)
+    return sj.__version__, accounts
+
+
 def mode_label():
     return "模擬" if SIMULATION else "正式"
 
@@ -75,3 +95,27 @@ def place_orders(confirm_list):
         except Exception as e:
             results.append({**item, "status": "Failed", "error": str(e)})
     return results
+
+
+def test_place_order():
+    """
+    永豐官方 API 測試專用下單(帳戶啟用 API 服務的必要步驟之一)。
+    比照官方文件範例: 2890, 價格28, 買進1股, ROD, 現股。
+    這不是真的交易建議,純粹是讓永豐系統記錄一筆測試委託。
+    """
+    from shioaji.constant import Action, StockPriceType, OrderType, StockOrderLot, StockOrderCond
+
+    api = get_api()
+    contract = api.Contracts.Stocks["2890"]
+    order = api.Order(
+        price=28,
+        quantity=1,
+        action=Action.Buy,
+        price_type=StockPriceType.LMT,
+        order_type=OrderType.ROD,
+        order_lot=StockOrderLot.Common,
+        order_cond=StockOrderCond.Cash,
+        account=api.stock_account,
+    )
+    trade = api.place_order(contract, order)
+    return trade

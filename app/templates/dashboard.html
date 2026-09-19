@@ -19,15 +19,38 @@
   .btn-confirm { background:#c33; color:#fff; font-weight:bold; padding:10px 20px; font-size:15px; }
   .btn-del { background:#444; color:#ccc; font-size:12px; padding:4px 8px; }
   .warn { color:#e6a23c; margin-bottom:12px; }
+  .test-box { background:#1a1a1a; border:1px solid #333; border-radius:6px; padding:14px; margin-bottom:20px; }
+  .test-box pre { white-space:pre-wrap; word-break:break-word; font-size:13px; color:#8f8; margin:0; }
 </style>
 </head>
 <body>
 
 <h1>方舟運算 建議 → 永豐下單 <span class="mode-tag">{{ mode_label }}模式</span></h1>
 
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+<div class="test-box">
+  <pre>{{ messages[0] }}</pre>
+</div>
+{% endif %}
+{% endwith %}
+
 {% if positions_error %}
 <p class="warn">⚠️ 無法取得目前持股: {{ positions_error }}(請確認 API Key 是否已設定)</p>
 {% endif %}
+
+<div class="test-box">
+  <h2 style="margin-top:0">永豐 API 測試(帳戶啟用必要步驟,僅需成功跑過一次)</h2>
+  <p style="color:#999; font-size:13px;">
+    僅能在營業日 08:00~20:00 進行(18:00後限台灣IP)。先按登入測試,間隔至少1秒後再按下單測試(用官方範例 2890 買進1股@28,模擬環境不會真的花錢)。
+  </p>
+  <form action="/api-test/login" method="post" style="display:inline">
+    <button class="btn-add" type="submit">① 執行登入測試</button>
+  </form>
+  <form action="/api-test/order" method="post" style="display:inline">
+    <button class="btn-add" type="submit">② 執行下單測試</button>
+  </form>
+</div>
 
 <h2>新增今日建議</h2>
 <form class="inline" action="/add" method="post">
