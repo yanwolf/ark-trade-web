@@ -5,7 +5,7 @@
 ## 部署步驟
 
 1. 把這個資料夾推上一個新的 GitHub repo(例如 `ark-trade-web`)
-2. Zeabur 建立新專案,從這個 GitHub repo 部署(跟 txf-sim / pump-dump-hunter 一樣的流程)
+2. Zeabur 建立新專案,從這個 GitHub repo 部署(跟 txf-sim / pump-dump-hunter 一樣的流程)。這個專案有 `Dockerfile`,Zeabur 偵測到會直接照它建置(python:3.11-slim,跟 txf-sim 同一個基礎環境,避免 shioaji 底層函式庫裝不起來的問題)
 3. 在同一個 Zeabur 專案裡加一個 **Postgres** 服務,Zeabur 會自動注入 `DATABASE_URL` 環境變數(沒有的話會退回本地 SQLite,重啟就會遺失資料,不建議正式用)
 4. 在 Zeabur 環境變數設定:
    ```
