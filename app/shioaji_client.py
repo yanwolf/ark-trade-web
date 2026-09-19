@@ -129,6 +129,25 @@ def get_current_positions():
     return current
 
 
+def get_position_details():
+    """
+    回傳完整庫存清單(代號、股數、均價、現價、損益),給「查詢目前庫存」畫面用。
+    欄位用 getattr 保護,不同版本 shioaji 回傳的欄位可能略有差異。
+    """
+    api = get_api()
+    positions = api.list_positions(api.stock_account)
+    details = []
+    for p in positions:
+        details.append({
+            "code": p.code,
+            "quantity": int(p.quantity),
+            "price": getattr(p, "price", None),
+            "last_price": getattr(p, "last_price", None),
+            "pnl": getattr(p, "pnl", None),
+        })
+    return details
+
+
 def place_orders(confirm_list):
     """
     confirm_list: [{code, action, qty, held_qty, note}]

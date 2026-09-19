@@ -22,8 +22,10 @@ def dashboard():
 
     positions_error = None
     confirm_list = []
+    position_details = []
     try:
-        current_positions = sc.get_current_positions()
+        position_details = sc.get_position_details()
+        current_positions = {p["code"]: p["quantity"] for p in position_details}
         for s in suggestions:
             confirm_list.append({
                 **s,
@@ -41,6 +43,7 @@ def dashboard():
         logs=logs,
         mode_label=sc.mode_label(),
         positions_error=positions_error,
+        position_details=position_details,
     )
 
 
