@@ -148,10 +148,29 @@ def get_position_details():
     return details
 
 
+def _get_order_price(api, contract, side, target_price=None):
+    """
+    決定下單價格。方舟運算的邏輯是「用合理低價慢慢等,不是不計代價求今天成交」,
+    所以預設不追市價:
+    - 你指定 target_price(例如方舟建議的淨值價)就用那個價格
+    - 沒指定才退回用參考價(contract.reference)
+    最後夾在漲跌停範圍內,避免超出限制被交易所拒絕。
+    """
+    price = target_price if target_price else contract.reference
+
+    if side == "buy":
+        price = min(price, contract.limit_up)
+    else:
+        price = max(price, contract.limit_down)
+
+    return price
+
+
 def place_orders(confirm_list):
     """
-    confirm_list: [{code, action, qty, held_qty, note}]
+    confirm_list: [{code, action, qty, held_qty, note, price(可選)}]
     qty 單位是「股」,用盤中零股(IntradayOdd)下單。
+    price 是你指定的目標價,沒填就用參考價,不會自動追市價。
     """
     from shioaji.constant import Action, StockPriceType, OrderType, StockOrderLot
 
@@ -161,8 +180,9 @@ def place_orders(confirm_list):
         try:
             contract = api.Contracts.Stocks[item["code"]]
             action = Action.Buy if item["action"] == "buy" else Action.Sell
+            price = _get_order_price(api, contract, item["action"], item.get("price"))
             order = api.Order(
-                price=contract.reference,
+                price=price,
                 quantity=item["qty"],
                 action=action,
                 price_type=StockPriceType.LMT,
@@ -172,10 +192,45 @@ def place_orders(confirm_list):
             )
             trade = api.place_order(contract, order)
             status = trade.status.status
-            results.append({**item, "status": str(status), "error": ""})
+            results.append({**item, "status": str(status), "error": "", "price": price})
         except Exception as e:
-            results.append({**item, "status": "Failed", "error": str(e)})
+            results.append({**item, "status": "Failed", "error": str(e), "price": None})
     return results
+
+
+def list_open_trades():
+    """
+    查詢今天還沒成交/還在委託中的單子,方便決定要不要取消改價重掛。
+    """
+    api = get_api()
+    api.update_status(api.stock_account)
+    trades = api.list_trades()
+    open_statuses = {"PendingSubmit", "PreSubmitted", "Submitted", "Filling"}
+    open_trades = []
+    for t in trades:
+        status = str(t.status.status)
+        if status in open_statuses:
+            open_trades.append({
+                "order_id": t.order.id,
+                "code": t.contract.code,
+                "action": str(t.order.action),
+                "quantity": t.order.quantity,
+                "price": t.order.price,
+                "status": status,
+            })
+    return open_trades
+
+
+def cancel_trade(order_id):
+    """依 order_id 取消今天的委託單,取消後可以用新價格重新掛。"""
+    api = get_api()
+    api.update_status(api.stock_account)
+    trades = api.list_trades()
+    for t in trades:
+        if t.order.id == order_id:
+            api.cancel_order(t)
+            return True
+    return False
 
 
 def test_place_order():

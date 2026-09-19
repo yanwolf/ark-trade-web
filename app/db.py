@@ -77,15 +77,33 @@ def init_db():
         """)
     conn.commit()
     conn.close()
+    _migrate_add_price_column()
 
 
-def add_suggestion(code, action, qty, note=""):
+def _migrate_add_price_column():
+    """
+    trade_log 跟 suggestions 表格是舊版建的(沒有 price 欄位),用 ALTER TABLE 補上去。
+    重複執行也安全,欄位已存在就直接忽略錯誤。
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    for table in ("trade_log", "suggestions"):
+        try:
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN price REAL")
+            conn.commit()
+        except Exception:
+            if USE_PG:
+                conn.rollback()
+    conn.close()
+
+
+def add_suggestion(code, action, qty, note="", price=None):
     conn = get_conn()
     cur = conn.cursor()
     ph = "%s" if USE_PG else "?"
     cur.execute(
-        f"INSERT INTO suggestions (code, action, qty, note) VALUES ({ph},{ph},{ph},{ph})",
-        (code, action, qty, note),
+        f"INSERT INTO suggestions (code, action, qty, note, price) VALUES ({ph},{ph},{ph},{ph},{ph})",
+        (code, action, qty, note, price),
     )
     conn.commit()
     conn.close()
@@ -95,10 +113,10 @@ def get_pending_suggestions():
     conn = get_conn()
     cur = conn.cursor()
     cond = "FALSE" if USE_PG else "0"
-    cur.execute(f"SELECT id, code, action, qty, note FROM suggestions WHERE consumed = {cond} ORDER BY id")
+    cur.execute(f"SELECT id, code, action, qty, note, price FROM suggestions WHERE consumed = {cond} ORDER BY id")
     rows = cur.fetchall()
     conn.close()
-    return [{"id": r[0], "code": r[1], "action": r[2], "qty": r[3], "note": r[4]} for r in rows]
+    return [{"id": r[0], "code": r[1], "action": r[2], "qty": r[3], "note": r[4], "price": r[5]} for r in rows]
 
 
 def delete_suggestion(sid):
@@ -129,9 +147,9 @@ def write_log(entries):
     ph = "%s" if USE_PG else "?"
     for e in entries:
         cur.execute(
-            f"""INSERT INTO trade_log (mode, code, action, qty, held_qty, status, error, note)
-                VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})""",
-            (e["mode"], e["code"], e["action"], e["qty"], e["held_qty"], e["status"], e["error"], e["note"]),
+            f"""INSERT INTO trade_log (mode, code, action, qty, held_qty, status, error, note, price)
+                VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})""",
+            (e["mode"], e["code"], e["action"], e["qty"], e["held_qty"], e["status"], e["error"], e["note"], e.get("price")),
         )
     conn.commit()
     conn.close()
@@ -141,8 +159,8 @@ def get_recent_logs(limit=50):
     conn = get_conn()
     cur = conn.cursor()
     ph = "%s" if USE_PG else "?"
-    cur.execute(f"SELECT ts, mode, code, action, qty, held_qty, status, error, note FROM trade_log ORDER BY id DESC LIMIT {ph}", (limit,))
+    cur.execute(f"SELECT ts, mode, code, action, qty, held_qty, status, error, note, price FROM trade_log ORDER BY id DESC LIMIT {ph}", (limit,))
     rows = cur.fetchall()
     conn.close()
-    cols = ["ts", "mode", "code", "action", "qty", "held_qty", "status", "error", "note"]
+    cols = ["ts", "mode", "code", "action", "qty", "held_qty", "status", "error", "note", "price"]
     return [dict(zip(cols, r)) for r in rows]
