@@ -72,49 +72,6 @@ def get_version():
     return sj.__version__
 
 
-def test_login():
-    """
-    永豐官方 API 測試專用登入(帳戶啟用 API 服務的必要步驟之一)。
-    刻意不用快取的連線,確保每次按都是一次全新的 login() 呼叫。
-    測試完立刻 logout,避免連線數疊加(永豐同帳號最多同時5個連線)
-    或反覆按導致資源耗盡拖垮服務。
-    """
-    import shioaji as sj
-
-    if not API_KEY or not SECRET_KEY:
-        raise RuntimeError("尚未設定 SJ_API_KEY / SJ_SECRET_KEY 環境變數")
-
-    api = sj.Shioaji(simulation=SIMULATION)
-    accounts = api.login(api_key=API_KEY, secret_key=SECRET_KEY)
-    version = sj.__version__
-    try:
-        api.logout()
-    except Exception:
-        pass
-    return version, accounts
-
-
-def check_contract_categories():
-    """
-    暫時性檢查用: 確認 api.Contracts 底下實際有哪些分類,
-    用來驗證複委託/海外商品是否真的能透過 Shioaji API 操作。
-    這個功能只是一次性排查,確認結果後這整段連同 API 測試區塊會一起下架。
-
-    注意: 刻意不用 dir()/vars() 整個內省物件(可能很慢甚至拖垮服務),
-    改用 hasattr 針對已知/可能的名稱逐一檢查,又快又安全。
-    """
-    api = get_api()
-    contracts = api.Contracts
-    known = ["Stocks", "Futures", "Options", "Indexs"]
-    possible_foreign_names = [
-        "ForeignStocks", "Overseas", "OverseasStocks", "SubBrokerage",
-        "GlobalStocks", "Foreign", "USStocks",
-    ]
-    found_known = [k for k in known if hasattr(contracts, k)]
-    found_foreign = [k for k in possible_foreign_names if hasattr(contracts, k)]
-    return found_known, found_foreign
-
-
 def mode_label():
     return "模擬" if SIMULATION else "正式"
 
@@ -265,27 +222,3 @@ def cancel_trade(order_id):
             api.cancel_order(t)
             return True
     return False
-
-
-def test_place_order():
-    """
-    永豐官方 API 測試專用下單(帳戶啟用 API 服務的必要步驟之一)。
-    比照官方文件範例: 2890, 價格28, 買進1股, ROD, 現股。
-    這不是真的交易建議,純粹是讓永豐系統記錄一筆測試委託。
-    """
-    from shioaji.constant import Action, StockPriceType, OrderType, StockOrderLot, StockOrderCond
-
-    api = get_api()
-    contract = api.Contracts.Stocks["2890"]
-    order = api.Order(
-        price=28,
-        quantity=1,
-        action=Action.Buy,
-        price_type=StockPriceType.LMT,
-        order_type=OrderType.ROD,
-        order_lot=StockOrderLot.Common,
-        order_cond=StockOrderCond.Cash,
-        account=api.stock_account,
-    )
-    trade = api.place_order(contract, order)
-    return trade

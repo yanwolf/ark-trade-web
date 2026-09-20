@@ -185,45 +185,5 @@ def cancel_order():
     return redirect(url_for("dashboard"))
 
 
-@app.route("/api-test/contracts", methods=["POST"])
-def api_test_contracts():
-    try:
-        found_known, found_foreign = sc.check_contract_categories()
-        lines = [f"已知分類(台股/期貨/選擇權/指數): {found_known}"]
-        if found_foreign:
-            lines.append(f"⚠️ 發現可能跟複委託/海外商品有關的分類: {found_foreign}")
-        else:
-            lines.append("✅ 沒發現複委託/海外商品相關的分類(檢查的是常見命名,不是窮舉全部)")
-        flash("\n".join(lines))
-    except Exception as e:
-        flash(f"❌ 檢查失敗: {e}")
-    return redirect(url_for("dashboard"))
-
-
-@app.route("/api-test/login", methods=["POST"])
-def api_test_login():
-    try:
-        version, accounts = sc.test_login()
-        lines = [f"shioaji 版本: {version}", ""]
-        for acc in accounts:
-            signed = getattr(acc, "signed", None)
-            mark = "✅ 簽署+API測試皆已通過" if signed else "❌ 尚未完成(簽署或API測試審核未過)"
-            lines.append(f"{type(acc).__name__} {acc.account_id}: {mark}")
-        flash("\n".join(lines))
-    except Exception as e:
-        flash(f"❌ 登入測試失敗: {e}")
-    return redirect(url_for("dashboard"))
-
-
-@app.route("/api-test/order", methods=["POST"])
-def api_test_order():
-    try:
-        trade = sc.test_place_order()
-        flash(f"✅ 下單測試已送出\n{trade}")
-    except Exception as e:
-        flash(f"❌ 下單測試失敗: {e}")
-    return redirect(url_for("dashboard"))
-
-
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080, debug=True)
