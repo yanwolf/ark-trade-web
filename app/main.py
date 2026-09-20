@@ -5,7 +5,7 @@ main.py — Flask dashboard
 - 按下確認才會真的呼叫 Shioaji 下單
 - 顯示歷史紀錄
 """
-from flask import Flask, request, redirect, url_for, render_template, flash
+from flask import Flask, request, redirect, url_for, render_template, flash, session
 import os
 
 import db
@@ -13,7 +13,57 @@ import shioaji_client as sc
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "ark-trade-dashboard-secret")
+ORDER_CONFIRM_PASSWORD = os.getenv("ORDER_CONFIRM_PASSWORD")
 db.init_db()
+
+
+@app.before_request
+def require_site_login():
+    """
+    整個網站都要密碼才能進(跟下單確認共用同一組 ORDER_CONFIRM_PASSWORD)。
+    沒設定這個環境變數的話,維持不用密碼,方便先測試。
+    """
+    if not ORDER_CONFIRM_PASSWORD:
+        return None
+    if request.endpoint in ("login", "static"):
+        return None
+    if not session.get("authed"):
+        return redirect(url_for("login"))
+    return None
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        if request.form.get("password") == ORDER_CONFIRM_PASSWORD:
+            session["authed"] = True
+            return redirect(url_for("dashboard"))
+        error = "密碼錯誤"
+    return f"""
+    <!doctype html>
+    <html lang="zh-Hant"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>登入</title>
+    <style>
+      body {{ font-family:-apple-system,sans-serif; background:#0e0f11; color:#eee;
+             display:flex; align-items:center; justify-content:center; height:100vh; margin:0; }}
+      form {{ background:#17181b; border:1px solid #2a2b2f; border-radius:10px; padding:24px; width:280px; }}
+      h1 {{ font-size:16px; margin:0 0 14px; }}
+      input {{ width:100%; padding:10px; background:#1f2023; color:#eee; border:1px solid #3a3b3f;
+               border-radius:8px; font-size:15px; box-sizing:border-box; margin-bottom:10px; }}
+      button {{ width:100%; padding:10px; background:#d4a72c; color:#1a1300; border:none;
+                border-radius:8px; font-weight:600; font-size:15px; }}
+      p.err {{ color:#e6a23c; font-size:13px; }}
+    </style></head><body>
+    <form method="post">
+      <h1>方舟運算 → 永豐下單</h1>
+      {'<p class="err">' + error + '</p>' if error else ''}
+      <input type="password" name="password" placeholder="密碼" autofocus required>
+      <button type="submit">登入</button>
+    </form>
+    </body></html>
+    """
 
 
 @app.route("/")
@@ -53,6 +103,7 @@ def dashboard():
         position_details=position_details,
         open_trades=open_trades,
         orders_error=orders_error,
+        require_password=bool(ORDER_CONFIRM_PASSWORD),
     )
 
 
@@ -89,6 +140,12 @@ def delete_bulk_suggestions():
 
 @app.route("/confirm", methods=["POST"])
 def confirm_orders():
+    if ORDER_CONFIRM_PASSWORD:
+        password = request.form.get("password", "")
+        if password != ORDER_CONFIRM_PASSWORD:
+            flash("❌ 密碼錯誤,已取消送出,沒有下任何單")
+            return redirect(url_for("dashboard"))
+
     suggestions = db.get_pending_suggestions()
     if not suggestions:
         return redirect(url_for("dashboard"))

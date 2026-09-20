@@ -257,6 +257,9 @@
   </div>
   </form>
   <form action="/confirm" method="post" onsubmit="return confirm('確定要送出以上訂單嗎?');" style="margin-top:14px;">
+    {% if require_password %}
+    <input type="password" name="password" placeholder="輸入確認密碼" required style="width:100%; margin-bottom:10px;">
+    {% endif %}
     <button class="btn-confirm" type="submit">✅ 確認送出全部訂單</button>
   </form>
   {% else %}

@@ -77,9 +77,15 @@ def mode_label():
 
 
 def get_current_positions():
-    """回傳 {code: 股數} 目前持股(以「股」為單位,不是張)。"""
+    """
+    回傳 {code: 股數} 目前持股(以「股」為單位,不是張)。
+    重點: list_positions 預設 unit=Unit.Common 是用「張」回報數量,
+    零股倉位不到1張幾乎都會變成0。要拿到正確股數必須指定 unit=Unit.Share。
+    """
+    from shioaji import Unit
+
     api = get_api()
-    positions = api.list_positions(api.stock_account)
+    positions = api.list_positions(api.stock_account, unit=Unit.Share)
     current = {}
     for p in positions:
         current[p.code] = current.get(p.code, 0) + int(p.quantity)
@@ -89,10 +95,13 @@ def get_current_positions():
 def get_position_details():
     """
     回傳完整庫存清單(代號、股數、均價、現價、損益),給「查詢目前庫存」畫面用。
+    同樣用 unit=Unit.Share 確保股數是真實股數,不是張數。
     欄位用 getattr 保護,不同版本 shioaji 回傳的欄位可能略有差異。
     """
+    from shioaji import Unit
+
     api = get_api()
-    positions = api.list_positions(api.stock_account)
+    positions = api.list_positions(api.stock_account, unit=Unit.Share)
     details = []
     for p in positions:
         details.append({
