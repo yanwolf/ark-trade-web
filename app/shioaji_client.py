@@ -4,6 +4,7 @@ shioaji_client.py — 封裝登入、抓持股、下單。
 避免它在某些環境裝不起來時,拖垮整個 Flask app 讓網站開不起來。
 """
 import os
+import time
 
 API_KEY = os.getenv("SJ_API_KEY")
 SECRET_KEY = os.getenv("SJ_SECRET_KEY")
@@ -14,6 +15,26 @@ CA_PASSWORD = os.getenv("SJ_CA_PASSWORD")
 CA_PERSON_ID = os.getenv("SJ_CA_PERSON_ID")
 
 _api = None
+
+
+def _call_with_retry(fn, retries=3, delay=2):
+    """
+    登入剛完成時,永豐的行情連線(Solace)有時還沒完全就緒,
+    這時查帳務/委託會噴 SessionNotEstablished / NotReady 這種暫時性錯誤。
+    遇到這類錯誤就等幾秒重試,不是真正的設定或程式問題。
+    """
+    last_err = None
+    for _ in range(retries):
+        try:
+            return fn()
+        except Exception as e:
+            last_err = e
+            msg = str(e)
+            if "SessionNotEstablished" in msg or "NotReady" in msg:
+                time.sleep(delay)
+                continue
+            raise
+    raise last_err
 
 
 def _resolve_ca_path():
@@ -85,7 +106,7 @@ def get_current_positions():
     from shioaji import Unit
 
     api = get_api()
-    positions = api.list_positions(api.stock_account, unit=Unit.Share)
+    positions = _call_with_retry(lambda: api.list_positions(api.stock_account, unit=Unit.Share))
     current = {}
     for p in positions:
         current[p.code] = current.get(p.code, 0) + int(p.quantity)
@@ -101,7 +122,7 @@ def get_position_details():
     from shioaji import Unit
 
     api = get_api()
-    positions = api.list_positions(api.stock_account, unit=Unit.Share)
+    positions = _call_with_retry(lambda: api.list_positions(api.stock_account, unit=Unit.Share))
     details = []
     for p in positions:
         details.append({
@@ -203,7 +224,7 @@ def list_open_trades():
     查詢今天還沒成交/還在委託中的單子,方便決定要不要取消改價重掛。
     """
     api = get_api()
-    api.update_status(api.stock_account)
+    _call_with_retry(lambda: api.update_status(api.stock_account))
     trades = api.list_trades()
     open_statuses = {"PendingSubmit", "PreSubmitted", "Submitted", "Filling"}
     open_trades = []
@@ -224,7 +245,7 @@ def list_open_trades():
 def cancel_trade(order_id):
     """依 order_id 取消今天的委託單,取消後可以用新價格重新掛。"""
     api = get_api()
-    api.update_status(api.stock_account)
+    _call_with_retry(lambda: api.update_status(api.stock_account))
     trades = api.list_trades()
     for t in trades:
         if t.order.id == order_id:

@@ -173,7 +173,7 @@
 {% endwith %}
 
 {% if positions_error %}
-<p class="warn">⚠️ 無法取得目前持股: {{ positions_error }}(請確認 API Key 是否已設定)</p>
+<p class="warn">⚠️ 無法取得目前持股: {{ positions_error }}(若剛重新部署/剛登入,通常是連線還沒就緒,重新整理再試一次)</p>
 {% endif %}
 
 <div class="card">
