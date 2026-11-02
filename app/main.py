@@ -15,6 +15,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "ark-trade-dashboard-secret")
 ORDER_CONFIRM_PASSWORD = os.getenv("ORDER_CONFIRM_PASSWORD")
 db.init_db()
+sc.start_health_monitor()  # 背景定期檢查 Shioaji 連線,斷線先自動重新登入
 
 
 @app.before_request
@@ -104,6 +105,7 @@ def dashboard():
         open_trades=open_trades,
         orders_error=orders_error,
         require_password=bool(ORDER_CONFIRM_PASSWORD),
+        sj_status=sc.get_status(),  # 放在查詢之後,才會反映剛剛發生的重新登入
     )
 
 
@@ -150,7 +152,11 @@ def confirm_orders():
     if not suggestions:
         return redirect(url_for("dashboard"))
 
-    current_positions = sc.get_current_positions()
+    try:
+        current_positions = sc.get_current_positions()
+    except Exception as e:
+        flash(f"❌ 無法取得目前持股,已取消送出,沒有下任何單: {e}")
+        return redirect(url_for("dashboard"))
     confirm_list = [
         {**s, "held_qty": current_positions.get(s["code"], 0)}
         for s in suggestions
@@ -173,7 +179,18 @@ def confirm_orders():
         for r in results
     ]
     db.write_log(log_entries)
-    db.mark_consumed([s["id"] for s in suggestions])
+    # 下單時斷線:中斷那筆照常標記已處理(避免再按一次造成重複下單),
+    # 後面還沒送出的(consume=False)留在待確認清單,確認委託後可再送
+    db.mark_consumed([r["id"] for r in results if r.get("consume", True)])
+
+    lost = [r for r in results if r.get("order_lost")]
+    if lost:
+        not_sent = [r for r in results if not r.get("consume", True)]
+        msg = f"⚠️ {sc.ORDER_LOST_MSG}\n中斷的委託: " + "、".join(
+            f"{r['code']} {'買' if r['action'] == 'buy' else '賣'} {r['qty']} 股" for r in lost)
+        if not_sent:
+            msg += f"\n另有 {len(not_sent)} 筆尚未送出,已保留在待確認清單"
+        flash(msg)
 
     return redirect(url_for("dashboard"))
 

@@ -48,3 +48,16 @@
 
 - Telegram 通知(跟 txf-sim 一樣,新增建議或下單完成時推播)
 - 自動抓取台股即時股價顯示在待確認清單旁,方便你判斷
+
+## Shioaji 自動重新登入(2026-11-02)
+
+**起因**:同一個永豐帳戶的 txf-sim 重新部署/重新登入後,ark 這邊的連線會失效,「目前庫存」顯示 `SessionNotEstablished / NotReady`,以前只能到 Coolify 按 Restart。現在程式會自己重新登入。
+
+- **偵測斷線**:`shioaji_client.session_dead(e)`,訊息含 `SessionNotEstablished`、`NotReady`、`Unable to wait for session`、`not logged in`、`token`、`expired`、`401` 等就判定連線失效。
+- **重新登入**:`relogin()` 用 lock 保證同時只有一個重新登入在跑;多個請求同時斷線只會登入 1 次。流程是 logout(限時 5 秒,失敗忽略)→ login → activate_ca(正式環境)→ 重新註冊委託回報 callback → 暖機探測。失敗退避重試:網頁請求裡 5、15 秒(避免超過 gunicorn 120 秒 timeout),背景檢查 5、15、60 秒。全部失敗後 60 秒內網頁不再自己重試,交給背景。
+- **查詢自動重試一次**:持股(list_positions)、今日委託(update_status + list_trades)、取消委託前的查詢,遇到斷線 → 重新登入 → 重試一次,仍失敗才顯示錯誤。
+- **下單絕不自動重送**:`place_order` 遇到斷線只重新登入,該筆記為 `ConnectionLost`,頁面提示「下單時連線中斷,請先到委託查詢確認是否已送出,再決定要不要重下」。同批後面還沒送的記為 `NotSent`,**留在待確認清單**;中斷那筆會從清單移除,避免再按一次造成重複下單。取消委託遇到斷線同樣不自動重試。
+- **背景健康檢查**:啟動 20 秒後開始,每 `SJ_HEALTH_INTERVAL` 秒(預設 300,設 0 關閉)用 list_positions 探測一次,壞了先重新登入。
+- **頁首狀態**:顯示 Shioaji 已連線/登入中/重新登入中/失敗,最後一次重新登入時間與原因,可展開最近 20 筆連線紀錄。紅色只用在「失敗」。
+- **其他程式的回報**:永豐會把同帳戶所有委託/成交回報推給每個登入中的程式。`handle_order_event()` 只認本程式送出的證券委託(比對 order id/seqno/ordno),期貨(FuturesOrder/FuturesDeal)與其他來源的回報一律忽略。回報只記在記憶體與日誌,**不會寫 trade_log**;trade_log 只在按「確認送出」時由下單結果寫入。
+- **測試**:`python -m unittest tests/test_reconnect.py -v`(stub 掉 shioaji,不會連永豐)。

@@ -157,6 +157,22 @@
 
   .actions-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   code { background: #1f2023; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+
+  /* Shioaji 連線狀態:已連線用藍色(紅色只留給真正的失敗) */
+  .conn { font-size: 12.5px; color: var(--text-dim); margin: -6px 0 14px; }
+  .conn .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; background: var(--text-faint); }
+  .conn .label { font-weight: 600; }
+  .conn-connected .dot { background: var(--accent); }
+  .conn-connected .label { color: var(--accent); }
+  .conn-connecting .dot, .conn-reconnecting .dot { background: var(--warn); }
+  .conn-connecting .label, .conn-reconnecting .label { color: var(--warn); }
+  .conn-failed .dot { background: var(--danger); }
+  .conn-failed .label { color: var(--danger); }
+  .conn-meta { color: var(--text-faint); }
+  .conn-err { color: var(--danger); margin-top: 2px; word-break: break-word; }
+  .conn details { margin-top: 2px; }
+  .conn summary { cursor: pointer; color: var(--text-faint); }
+  .conn ul { margin: 4px 0 0; padding-left: 18px; color: var(--text-faint); }
 </style>
 </head>
 <body>
@@ -166,6 +182,26 @@
   <span class="mode-tag {{ 'live' if mode_label == '正式' else 'sim' }}">{{ mode_label }}模式</span>
 </div>
 
+<div class="conn conn-{{ sj_status.state }}">
+  <span class="dot"></span>Shioaji:<span class="label">{{ sj_status.label }}</span>
+  {% if sj_status.last_relogin_at %}
+  <span class="conn-meta">· 最後重新登入 {{ sj_status.last_relogin_at }}({{ sj_status.last_relogin_reason }})</span>
+  {% endif %}
+  {% if sj_status.state == 'failed' and sj_status.last_error %}
+  <div class="conn-err">登入失敗: {{ sj_status.last_error }}(背景會持續重試)</div>
+  {% endif %}
+  {% if sj_status.events %}
+  <details>
+    <summary>連線紀錄({{ sj_status.events|length }})</summary>
+    <ul>
+      {% for ev in sj_status.events %}
+      <li>{{ ev.at }} {{ ev.kind }}{{ '成功' if ev.ok else '失敗' }} — {{ ev.reason }}{% if ev.error %}:{{ ev.error }}{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+</div>
+
 {% with messages = get_flashed_messages() %}
 {% if messages %}
 <div class="flash-box"><pre>{{ messages[0] }}</pre></div>
@@ -173,7 +209,7 @@
 {% endwith %}
 
 {% if positions_error %}
-<p class="warn">⚠️ 無法取得目前持股: {{ positions_error }}(若剛重新部署/剛登入,通常是連線還沒就緒,重新整理再試一次)</p>
+<p class="warn">⚠️ 無法取得目前持股: {{ positions_error }}(程式已自動嘗試重新登入;若仍失敗,看上方連線狀態,稍後重新整理)</p>
 {% endif %}
 
 <div class="card">
@@ -181,10 +217,11 @@
   {% if position_details %}
   <div class="table-scroll">
   <table>
-    <tr><th>代號</th><th class="num">股數</th><th class="num">均價</th><th class="num">現價</th><th class="num">損益</th></tr>
+    <tr><th>代號</th><th>名稱</th><th class="num">股數</th><th class="num">均價</th><th class="num">現價</th><th class="num">損益</th></tr>
     {% for p in position_details %}
     <tr>
       <td>{{ p.code }}</td>
+      <td>{{ p.name }}</td>
       <td class="num">{{ p.quantity }}</td>
       <td class="num">{{ p.price }}</td>
       <td class="num">{{ p.last_price }}</td>
